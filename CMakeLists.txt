@@ -23,6 +23,3 @@ target_link_libraries(tune_su3xsu3 PRIVATE Kokkos::kokkos)
 
 add_executable(tune_plaq tune_plaq.cpp)
 target_link_libraries(tune_plaq PRIVATE Kokkos::kokkos)
-
-add_executable(tune_plaq_SUN tune_plaq_SUN.cpp)
-target_link_libraries(tune_plaq_SUN PRIVATE Kokkos::kokkos)
