@@ -116,7 +116,7 @@ int run_tuner(const StreamIndex stream_array_size) {
       const StreamIndex lp = (l + 1) % stream_array_size;
       temp(i, j, k, l) = plaq_site(g[0](i, j, k, l), g[1](ip, j, k, l), g[1](i, j, k, l), g[0](i, jp, k, l));
                         + plaq_site(g[0](i, j, k, l), g[2](ip, j, k, l), g[2](i, j, k, l), g[0](i, j, kp, l))
-                        + plaq_site(g[0](i, j, k, l), g[3](ip, j, k, l), g[3](i, j, k, l), g[0](i, j, lp, l))
+                        + plaq_site(g[0](i, j, k, l), g[3](ip, j, k, l), g[3](i, j, k, l), g[0](i, j, k, lp))
                         + plaq_site(g[1](i, j, k, l), g[2](i, jp, k, l), g[2](i, j, k, l), g[1](i, j, kp, l))
                         + plaq_site(g[1](i, j, k, l), g[3](i, jp, k, l), g[3](i, j, k, l), g[1](i, j, k, lp))
                         + plaq_site(g[2](i, j, k, l), g[3](i, j, kp, l), g[3](i, j, k, l), g[2](i, j, k, lp));
@@ -140,7 +140,7 @@ int run_tuner(const StreamIndex stream_array_size) {
         const StreamIndex lp = (l + 1) % stream_array_size;
         temp(i, j, k, l) = plaq_site(g[0](i, j, k, l), g[1](ip, j, k, l), g[1](i, j, k, l), g[0](i, jp, k, l));
                           + plaq_site(g[0](i, j, k, l), g[2](ip, j, k, l), g[2](i, j, k, l), g[0](i, j, kp, l))
-                          + plaq_site(g[0](i, j, k, l), g[3](ip, j, k, l), g[3](i, j, k, l), g[0](i, j, lp, l))
+                          + plaq_site(g[0](i, j, k, l), g[3](ip, j, k, l), g[3](i, j, k, l), g[0](i, j, k, lp))
                           + plaq_site(g[1](i, j, k, l), g[2](i, jp, k, l), g[2](i, j, k, l), g[1](i, j, kp, l))
                           + plaq_site(g[1](i, j, k, l), g[3](i, jp, k, l), g[3](i, j, k, l), g[1](i, j, k, lp))
                           + plaq_site(g[2](i, j, k, l), g[3](i, j, kp, l), g[3](i, j, k, l), g[2](i, j, k, lp));
@@ -164,11 +164,11 @@ int run_tuner(const StreamIndex stream_array_size) {
         const StreamIndex kp = (k + 1) % stream_array_size;
         const StreamIndex lp = (l + 1) % stream_array_size;
         temp(i, j, k, l) = plaq_site(g[0](i, j, k, l), g[1](ip, j, k, l), g[1](i, j, k, l), g[0](i, jp, k, l));
-                         + plaq_site(g[0](i, j, k, l), g[2](ip, j, k, l), g[2](i, j, k, l), g[0](i, j, kp, l))
-                         + plaq_site(g[0](i, j, k, l), g[3](ip, j, k, l), g[3](i, j, k, l), g[0](i, j, lp, l))
-                         + plaq_site(g[1](i, j, k, l), g[2](i, jp, k, l), g[2](i, j, k, l), g[1](i, j, kp, l))
-                         + plaq_site(g[1](i, j, k, l), g[3](i, jp, k, l), g[3](i, j, k, l), g[1](i, j, k, lp))
-                         + plaq_site(g[2](i, j, k, l), g[3](i, j, kp, l), g[3](i, j, k, l), g[2](i, j, k, lp));
+                          + plaq_site(g[0](i, j, k, l), g[2](ip, j, k, l), g[2](i, j, k, l), g[0](i, j, kp, l))
+                          + plaq_site(g[0](i, j, k, l), g[3](ip, j, k, l), g[3](i, j, k, l), g[0](i, j, k, lp))
+                          + plaq_site(g[1](i, j, k, l), g[2](i, jp, k, l), g[2](i, j, k, l), g[1](i, j, kp, l))
+                          + plaq_site(g[1](i, j, k, l), g[3](i, jp, k, l), g[3](i, j, k, l), g[1](i, j, k, lp))
+                          + plaq_site(g[2](i, j, k, l), g[3](i, j, kp, l), g[3](i, j, k, l), g[2](i, j, k, lp));
       });
     Kokkos::fence();
     min_time = std::min(min_time, timer.seconds());
