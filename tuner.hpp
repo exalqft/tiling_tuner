@@ -86,7 +86,7 @@ auto get_tiling(const StreamIndexArray<rank> &start,
   double best_time = std::numeric_limits<double>::max();
   std::vector<int64_t> fast_ind_tiles;
   int64_t fast_ind = max_tile;
-  while(fast_ind > 1) {
+  while(fast_ind > 2) {
     fast_ind = fast_ind / 2;
     fast_ind_tiles.push_back(fast_ind);
   }
