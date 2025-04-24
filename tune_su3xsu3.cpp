@@ -1,31 +1,89 @@
 #include "tuner.hpp"
+#include <getopt.h>
 
-int run_tuner(const StreamIndex stream_array_size) {
+#define Ndims 4
+#define Ncolor 3
+
+// define related fields
+template <size_t Nc>
+using SUN = Kokkos::Array<Kokkos::Array<complex_t,Nc>,Nc>;
+template <size_t Nd, size_t Nc>
+using GaugeField = Kokkos::View<SUN<Nc>****[Nd], Kokkos::MemoryTraits<Kokkos::Restrict>>;
+// define corresponding constant fields
+#if defined ( KOKKOS_ENABLE_CUDA )
+template <size_t Nd, size_t Nc>
+using constGaugeField = Kokkos::View<const SUN<Nc>****[Nd], Kokkos::MemoryTraits<Kokkos::RandomAccess>>;
+#else
+template <size_t Nd, size_t Nc>
+using constGaugeField = Kokkos::View<const SUN<Nc>****[Nd], Kokkos::MemoryTraits<Kokkos::Restrict>>;
+#endif
+
+// su3 matrix multiplication
+template <size_t Nc>
+KOKKOS_FORCEINLINE_FUNCTION
+SUN<Nc> operator*(const SUN<Nc> &a, const SUN<Nc> &b) {
+  SUN<Nc> c;
+  #pragma unroll
+  for (size_t i = 0; i < Nc; ++i) {
+    #pragma unroll
+    for (size_t j = 0; j < Nc; ++j) {
+      c[i][j] = a[i][0] * b[0][j];
+      #pragma unroll
+      for (size_t k = 1; k < Nc; ++k) {
+        c[i][j] += a[i][k] * b[k][j];
+      }
+    }
+  }
+  return c;
+}
+
+// functor for c = a*b
+template <size_t Nd, size_t Nc>
+struct su3xsu3 {
+  constGaugeField<Nd, Nc> a;
+  constGaugeField<Nd, Nc> b;
+  GaugeField<Nd, Nc> c;
+
+  su3xsu3(GaugeField<Nd, Nc> a_, constGaugeField<Nd, Nc> b_,
+          GaugeField<Nd, Nc> c_) : a(a_), b(b_), c(c_) {}
+
+  KOKKOS_FORCEINLINE_FUNCTION
+  void operator()(const index_t i0, const index_t i1,
+                  const index_t i2, const index_t i3) const {
+    #pragma unroll
+    for (index_t mu = 0; mu < Nd; ++mu) {
+      c(i0, i1, i2, i3, mu) = a(i0, i1, i2, i3, mu) * b(i0, i1, i2, i3, mu);
+    }
+  }
+};
+
+template <size_t Nd, size_t Nc>
+int run_tuner(const index_t stream_array_size) {
   printf("Reports fastest timing per kernel\n");
 
-  const double nelem = (double)stream_array_size*
-                       (double)stream_array_size*
-                       (double)stream_array_size*
-                       (double)stream_array_size;
+  const real_t nelem = (real_t)stream_array_size*
+                       (real_t)stream_array_size*
+                       (real_t)stream_array_size*
+                       (real_t)stream_array_size;
 
-  const double suN_nelem = nelem*Nc*Nc;
+  const real_t suN_nelem = nelem*Nc*Nc;
 
-  const double gauge_nelem = Nd*suN_nelem;
+  const real_t gauge_nelem = Nd*suN_nelem;
 
   printf("Memory Sizes:\n");
   printf("- Gauge Array Size:  %d*%d*%" PRIu64 "^4\n",
          Nd, Nc,
          static_cast<uint64_t>(stream_array_size));
   printf("- Per complex Field:     %12.2f MB\n",
-         1.0e-6 * nelem * (double)sizeof(val_t));
+         1.0e-6 * nelem * (real_t)sizeof(complex_t));
   printf("- Per SUNField:          %12.2f MB\n",
-         1.0e-6 * suN_nelem * (double)sizeof(val_t));
+         1.0e-6 * suN_nelem * (real_t)sizeof(complex_t));
   printf("- Per GaugeField:        %12.2f MB\n",
-          1.0e-6 * gauge_nelem * (double)sizeof(val_t));
+          1.0e-6 * gauge_nelem * (real_t)sizeof(complex_t));
   printf("- Total:                 %12.2f MB\n",
-         1.0e-6 * (3.0*gauge_nelem) * (double)sizeof(val_t));
+         1.0e-6 * (3.0*gauge_nelem) * (real_t)sizeof(complex_t));
 
-  real_t total_mem = 3.0 * gauge_nelem * (double)sizeof(val_t);
+  real_t total_mem = 3.0 * gauge_nelem * (real_t)sizeof(complex_t);
 
   printf("Kernels will be tuned for %d iterations.\n",
           STREAM_NTIMES);
@@ -34,29 +92,29 @@ int run_tuner(const StreamIndex stream_array_size) {
 
   printf("Initializing Views...\n");
 
-  GaugeField a(Kokkos::view_alloc("a", Kokkos::WithoutInitializing),
-                stream_array_size, stream_array_size,
-                stream_array_size, stream_array_size);
-  GaugeField b(Kokkos::view_alloc("b", Kokkos::WithoutInitializing),
-                stream_array_size, stream_array_size,
-                stream_array_size, stream_array_size);
-  GaugeField c(Kokkos::view_alloc("c", Kokkos::WithoutInitializing),
-                stream_array_size, stream_array_size,
-                stream_array_size, stream_array_size);
+  GaugeField<Nd,Nc> a(Kokkos::view_alloc("a", Kokkos::WithoutInitializing),
+                             stream_array_size, stream_array_size,
+                             stream_array_size, stream_array_size);
+  GaugeField<Nd,Nc> b(Kokkos::view_alloc("b", Kokkos::WithoutInitializing),
+                             stream_array_size, stream_array_size,
+                             stream_array_size, stream_array_size);
+  GaugeField<Nd,Nc> c(Kokkos::view_alloc("c", Kokkos::WithoutInitializing),
+                             stream_array_size, stream_array_size,
+                             stream_array_size, stream_array_size);
 
-  Kokkos::parallel_for(Policy<Nd>(StreamIndexArray<Nd>{0, 0, 0, 0}, 
-    StreamIndexArray<Nd>{stream_array_size, stream_array_size, 
+  Kokkos::parallel_for(Policy<Nd>(IndexArray<Nd>{0, 0, 0, 0}, 
+    IndexArray<Nd>{stream_array_size, stream_array_size, 
       stream_array_size, stream_array_size}),
-    KOKKOS_LAMBDA(int i, int j, int k, int l) {
+    KOKKOS_LAMBDA(index_t i, index_t j, index_t k, index_t l) {
       #pragma unroll
-      for(int mu = 0; mu < Nd; ++mu) {
+      for(index_t mu = 0; mu < Nd; ++mu) {
         #pragma unroll
-        for(int c1 = 0; c1 < Nc; ++c1) {
+        for(index_t c1 = 0; c1 < Nc; ++c1) {
           #pragma unroll
-          for(int c2 = 0; c2 < Nc; ++c2) {
-            a(i, j, k, l, mu)[c1][c2] = val_t(1.0, 0.4);
-            b(i, j, k, l, mu)[c1][c2] = val_t(2.0, 0.5);
-            c(i, j, k, l, mu)[c1][c2] = val_t(3.0, 0.6);
+          for(index_t c2 = 0; c2 < Nc; ++c2) {
+            a(i, j, k, l, mu)[c1][c2] = complex_t(1.0, 0.4);
+            b(i, j, k, l, mu)[c1][c2] = complex_t(2.0, 0.5);
+            c(i, j, k, l, mu)[c1][c2] = complex_t(3.0, 0.6);
           }
         }
       }
@@ -67,55 +125,40 @@ int run_tuner(const StreamIndex stream_array_size) {
 
   int rc = 0;
 
+ su3xsu3<Nd, Nc> su3mult(a, b, c);
+
   printf("Tuning...\n");
 
-  auto best_tiling = get_tiling(StreamIndexArray<Nd>{0, 0, 0, 0}, 
-    StreamIndexArray<Nd>{stream_array_size, stream_array_size, 
+  auto best_tiling = tune_parallel_for<Nd>(
+    IndexArray<Nd>{0, 0, 0, 0}, 
+    IndexArray<Nd>{stream_array_size, stream_array_size, 
       stream_array_size, stream_array_size},
-    KOKKOS_LAMBDA(const StreamIndex i, const StreamIndex j,
-      const StreamIndex k, const StreamIndex l) {
-      #pragma unroll
-      for(int mu = 0; mu < Nd; ++mu) {
-        a(i, j, k, l, mu) = b(i, j, k, l, mu) * c(i, j, k, l, mu);
-      }
-    });
-  
+    su3mult);
+
   printf(HLINE);
   printf("Best Tile size: %d %d %d %d\n", best_tiling[0], best_tiling[1], best_tiling[2], best_tiling[3]);
   printf(HLINE);
   Kokkos::Timer timer;
-  double min_time = std::numeric_limits<double>::max();
+  real_t min_time = std::numeric_limits<real_t>::max();
   for(int ii = 0; ii < STREAM_NTIMES; ii++) {
     timer.reset();
-    Kokkos::parallel_for(Policy<4>(StreamIndexArray<Nd>{0, 0, 0, 0}, 
-      StreamIndexArray<Nd>{stream_array_size, stream_array_size, 
+    Kokkos::parallel_for(Policy<4>(IndexArray<Nd>{0, 0, 0, 0}, 
+      IndexArray<Nd>{stream_array_size, stream_array_size, 
         stream_array_size, stream_array_size}),
-      KOKKOS_LAMBDA(const StreamIndex i, const StreamIndex j,
-        const StreamIndex k, const StreamIndex l) {
-        #pragma unroll
-        for(int mu = 0; mu < Nd; ++mu) {
-          a(i, j, k, l, mu) = b(i, j, k, l, mu) * c(i, j, k, l, mu);
-        }
-      });
+      su3mult);
     Kokkos::fence();
     min_time = std::min(min_time, timer.seconds());
   }
   printf("rec tiling Time: %11.4e s\n", min_time);
   printf("rec tiling BW: %11.4f GB/s\n", total_mem / min_time * 1.0e-9);
   printf(HLINE);
-  min_time = std::numeric_limits<double>::max();
+  min_time = std::numeric_limits<real_t>::max();
   for(int ii = 0; ii < STREAM_NTIMES; ii++) {
     timer.reset();
-    Kokkos::parallel_for(Policy<4>(StreamIndexArray<Nd>{0, 0, 0, 0}, 
-      StreamIndexArray<Nd>{stream_array_size, stream_array_size, 
+    Kokkos::parallel_for(Policy<4>(IndexArray<Nd>{0, 0, 0, 0}, 
+      IndexArray<Nd>{stream_array_size, stream_array_size, 
         stream_array_size, stream_array_size}, best_tiling),
-      KOKKOS_LAMBDA(const StreamIndex i, const StreamIndex j,
-        const StreamIndex k, const StreamIndex l) {
-        #pragma unroll
-        for(int mu = 0; mu < Nd; ++mu) {
-          a(i, j, k, l, mu) = b(i, j, k, l, mu) * c(i, j, k, l, mu);
-        }
-      });
+      su3mult);
     Kokkos::fence();
     min_time = std::min(min_time, timer.seconds());
   }
@@ -126,7 +169,7 @@ int run_tuner(const StreamIndex stream_array_size) {
   return rc;
 }
 
-int parse_args(int argc, char **argv, StreamIndex &stream_array_size) {
+int parse_args(int argc, char **argv, index_t &stream_array_size) {
   // Defaults
   stream_array_size = 32;
 
@@ -170,10 +213,10 @@ int main(int argc, char *argv[]) {
 
   Kokkos::initialize(argc, argv);
   int rc;
-  StreamIndex stream_array_size;
+  index_t stream_array_size;
   rc = parse_args(argc, argv, stream_array_size);
   if (rc == 0) {
-    rc = run_tuner(stream_array_size);
+    rc = run_tuner<Ndims,Ncolor>(stream_array_size);
   } else if (rc == -2) {
     // Don't return error code when called with "-h"
     rc = 0;

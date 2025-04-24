@@ -21,5 +21,5 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/kokkos/kokkos ${CMAKE_CU
 add_executable(tune_su3xsu3 tune_su3xsu3.cpp)
 target_link_libraries(tune_su3xsu3 PRIVATE Kokkos::kokkos)
 
-add_executable(tune_plaq tune_plaq.cpp)
-target_link_libraries(tune_plaq PRIVATE Kokkos::kokkos)
+# add_executable(tune_plaq tune_plaq.cpp)
+# target_link_libraries(tune_plaq PRIVATE Kokkos::kokkos)
